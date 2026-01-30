@@ -47,7 +47,9 @@ func (p *BinanceProvider) listen(conn *websocket.Conn, output chan<- model.Tick)
 		var data struct {
 			Symbol  string `json:"s"`
 			BestBid string `json:"b"`
+			BidQty  string `json:"B"`
 			BestAsk string `json:"a"`
+			AskQty  string `json:"A"`
 		}
 
 		if err := json.Unmarshal(message, &data); err != nil {
