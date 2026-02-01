@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
 	"time"
 )
 
@@ -49,7 +50,16 @@ func (m *Monitor) Render(prices map[string]model.Tick, optimal engine.Spread) {
 	fmt.Printf("%-15s | %-18s | %-18s | %-10s\n", "Exchange", "Bid (Sell)", "Ask (Buy)", "Status")
 	fmt.Println(ColorGray + "--------------------------------------------------------------------------------" + ColorReset)
 
-	for name, tick := range prices {
+	names := make([]string, 0, len(prices))
+
+	for name, _ := range prices {
+		names = append(names, name)
+	}
+
+	sort.Strings(names)
+
+	for _, name := range names {
+		tick := prices[name]
 		status := ColorGreen + "LIVE" + ColorReset
 		if time.Since(tick.Timestamp) > 5*time.Second {
 			status = ColorRed + "STALE" + ColorReset

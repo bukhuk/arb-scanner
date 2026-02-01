@@ -20,6 +20,9 @@ func main() {
 	p2 := &provider.BybitProvider{Symbol: "btcusdt"}
 	p2.Start(ticks)
 
+	p3 := &provider.OKXProvider{Symbol: "BTC-USDT"}
+	p3.Start(ticks)
+
 	monitor := ui.NewMonitor()
 	fmt.Print("\033[2J")
 

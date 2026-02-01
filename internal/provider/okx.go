@@ -1,0 +1,88 @@
+package provider
+
+import (
+	"encoding/json"
+	"fmt"
+	"github.com/bukhuk/arb-scanner/internal/model"
+	"github.com/gorilla/websocket"
+	"log"
+	"strconv"
+	"time"
+)
+
+type OKXProvider struct {
+	Symbol string
+}
+
+func (p *OKXProvider) GetName() string {
+	return "OKX"
+}
+
+func (p *OKXProvider) Start(output chan<- model.Tick) error {
+	url := "wss://ws.okx.com:8443/ws/v5/public"
+
+	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	if err != nil {
+		return fmt.Errorf("okx dial error: %w", err)
+	}
+
+	subscribeMsg := map[string]interface{}{
+		"op": "subscribe",
+		"args": []map[string]string{
+			{
+				"channel": "tickers",
+				"instId":  p.Symbol,
+			},
+		},
+	}
+
+	if err := conn.WriteJSON(subscribeMsg); err != nil {
+		return fmt.Errorf("okx subscribe error: %w", err)
+	}
+
+	go p.listen(conn, output)
+
+	return nil
+}
+
+func (p *OKXProvider) listen(conn *websocket.Conn, output chan<- model.Tick) {
+	defer conn.Close()
+
+	for {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			log.Printf("OKX read error: %v", err)
+			return
+		}
+
+		if string(message) == "{\"event\":\"subscribe\",\"arg\":{\"channel\":\"tickers\",\"instId\":\""+p.Symbol+"\"}}" {
+			continue
+		}
+
+		var resp struct {
+			Data []struct {
+				InstId string `json:"instId"`
+				BidPx  string `json:"bidPx"`
+				AskPx  string `json:"askPx"`
+			} `json:"data"`
+		}
+
+		if err := json.Unmarshal(message, &resp); err != nil {
+			continue
+		}
+
+		if len(resp.Data) > 0 {
+			d := resp.Data[0]
+			bid, _ := strconv.ParseFloat(d.BidPx, 64)
+			ask, _ := strconv.ParseFloat(d.AskPx, 64)
+
+			output <- model.Tick{
+				Exchange:  p.GetName(),
+				Symbol:    d.InstId,
+				BestBid:   int64(bid * 1e8),
+				BestAsk:   int64(ask * 1e8),
+				Timestamp: time.Now(),
+			}
+		}
+	}
+}
