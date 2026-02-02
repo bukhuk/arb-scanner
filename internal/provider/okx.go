@@ -18,10 +18,29 @@ func (p *OKXProvider) GetName() string {
 	return "OKX"
 }
 
-func (p *OKXProvider) Start(output chan<- model.Tick) error {
+func (p *OKXProvider) Start(output chan<- model.Tick) {
+	go func() {
+		delay := time.Second
+		for {
+			err := p.connectionAndListen(output)
+			if err != nil {
+				log.Printf("[%s] Connection lost: %v. Retrying in %v...", p.GetName(), err, delay)
+				time.Sleep(delay)
+				delay <<= 1
+				if delay > time.Minute {
+					delay = time.Minute
+				}
+			}
+			delay = time.Second
+		}
+	}()
+}
+
+func (p *OKXProvider) connectionAndListen(output chan<- model.Tick) error {
 	url := "wss://ws.okx.com:8443/ws/v5/public"
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	defer conn.Close()
 	if err != nil {
 		return fmt.Errorf("okx dial error: %w", err)
 	}
@@ -40,19 +59,11 @@ func (p *OKXProvider) Start(output chan<- model.Tick) error {
 		return fmt.Errorf("okx subscribe error: %w", err)
 	}
 
-	go p.listen(conn, output)
-
-	return nil
-}
-
-func (p *OKXProvider) listen(conn *websocket.Conn, output chan<- model.Tick) {
-	defer conn.Close()
-
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
 			log.Printf("OKX read error: %v", err)
-			return
+			return err
 		}
 
 		if string(message) == "{\"event\":\"subscribe\",\"arg\":{\"channel\":\"tickers\",\"instId\":\""+p.Symbol+"\"}}" {

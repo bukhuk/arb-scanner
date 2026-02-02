@@ -19,29 +19,41 @@ func (p *BinanceProvider) GetName() string {
 	return "Binance"
 }
 
-func (p *BinanceProvider) Start(output chan<- model.Tick) error {
+func (p *BinanceProvider) Start(output chan<- model.Tick) {
+	go func() {
+		delay := time.Second
+		for {
+			log.Printf("[%s] Connection to %s...", p.GetName(), p.Symbol)
+			err := p.connectAndListen(output)
+			if err != nil {
+				log.Printf("[%s] Connection lost: %v. Retrying in %v...", p.GetName(), err, delay)
+				time.Sleep(delay)
+				delay <<= 1
+				if delay > time.Minute {
+					delay = time.Minute
+				}
+				continue
+			}
+			delay = time.Second
+		}
+	}()
+}
+
+func (p *BinanceProvider) connectAndListen(output chan<- model.Tick) error {
 	symbol := strings.ToLower(p.Symbol)
 	url := fmt.Sprintf("wss://stream.binance.com:9443/ws/%s@bookTicker", symbol)
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
-
 	if err != nil {
-		return fmt.Errorf("binance dial error: %w", err)
+		return err
 	}
-
-	go p.listen(conn, output)
-
-	return nil
-}
-
-func (p *BinanceProvider) listen(conn *websocket.Conn, output chan<- model.Tick) {
 	defer conn.Close()
 
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
 			log.Printf("Binance read error: %v", err)
-			return
+			return err
 		}
 
 		var data struct {

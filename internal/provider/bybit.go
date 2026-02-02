@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/bukhuk/arb-scanner/internal/model"
 	"github.com/gorilla/websocket"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -18,39 +19,53 @@ func (p *BybitProvider) GetName() string {
 	return "Bybit"
 }
 
-func (p *BybitProvider) Start(output chan<- model.Tick) error {
+func (p *BybitProvider) Start(output chan<- model.Tick) {
+	go func() {
+		delay := time.Second
+		for {
+			err := p.connectionAndListen(output)
+			if err != nil {
+				log.Printf("[%s] Connection lost: %v. Retrying in %v...", p.GetName(), err, delay)
+				time.Sleep(delay)
+				delay <<= 1
+				if delay > time.Minute {
+					delay = time.Minute
+				}
+			}
+			delay = time.Second
+		}
+	}()
+}
+
+func (p *BybitProvider) connectionAndListen(output chan<- model.Tick) error {
 	url := "wss://stream.bybit.com/v5/public/spot"
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
-
-	if err != nil {
-		return fmt.Errorf("bybit dial error: %w", err)
-	}
-
-	go p.listen(conn, output)
-
-	return nil
-}
-
-func (p *BybitProvider) listen(conn *websocket.Conn, output chan<- model.Tick) {
 	defer conn.Close()
 
-	sub := map[string]interface{}{
+	if err != nil {
+		return err
+	}
+
+	subscribeMsg := map[string]interface{}{
 		"op":   "subscribe",
 		"args": []string{"orderbook.1." + strings.ToUpper(p.Symbol)},
 	}
-	conn.WriteJSON(sub)
+
+	if err := conn.WriteJSON(subscribeMsg); err != nil {
+		return fmt.Errorf("bybit subscribe error: %w", err)
+	}
 
 	var lastBid, lastAsk int64
 
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			return
+			return err
 		}
 
 		var resp struct {
-			Type string `json:"type"` // snapshot или delta
+			Type string `json:"type"`
 			Data struct {
 				Bids [][]string `json:"b"`
 				Asks [][]string `json:"a"`

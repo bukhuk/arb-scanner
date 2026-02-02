@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"github.com/bukhuk/arb-scanner/internal/engine"
 	"github.com/bukhuk/arb-scanner/internal/model"
-	"os"
-	"os/exec"
-	"runtime"
 	"sort"
 	"time"
 )
@@ -26,18 +23,6 @@ type Monitor struct {
 
 func NewMonitor() *Monitor {
 	return &Monitor{StartTime: time.Now()}
-}
-
-func (m *Monitor) Clear() {
-	if runtime.GOOS == "windows" {
-		cmd := exec.Command("cmd", "/c", "cls")
-		cmd.Stdout = os.Stdout
-		cmd.Run()
-	} else {
-		cmd := exec.Command("clear")
-		cmd.Stdout = os.Stdout
-		cmd.Run()
-	}
 }
 
 func (m *Monitor) Render(prices map[string]model.Tick, optimal engine.Spread) {
