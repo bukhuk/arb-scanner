@@ -26,7 +26,7 @@ func NewMonitor() *Monitor {
 }
 
 func (m *Monitor) Render(prices map[string]model.Tick, optimal engine.Spread) {
-	fmt.Print("\033[H")
+	fmt.Print("\033[H\033[J")
 
 	fmt.Printf("%s========= ARB-SCANNER ACTIVE | Uptime: %v %s=========\n",
 		ColorCyan, time.Since(m.StartTime).Round(time.Second), ColorReset)

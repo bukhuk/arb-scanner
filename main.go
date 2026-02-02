@@ -15,6 +15,14 @@ import (
 )
 
 func main() {
+	logFile, err := os.OpenFile("scanner.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer logFile.Close()
+
+	log.SetOutput(logFile)
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 

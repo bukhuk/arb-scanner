@@ -17,7 +17,7 @@ type ByBitProvider struct {
 }
 
 func (p *ByBitProvider) GetName() string {
-	return "Bybit"
+	return "ByBit"
 }
 
 func (p *ByBitProvider) Start(ctx context.Context, output chan<- model.Tick) {
