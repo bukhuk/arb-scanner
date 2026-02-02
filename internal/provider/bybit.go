@@ -33,6 +33,12 @@ func (p *ByBitProvider) Start(ctx context.Context, output chan<- model.Tick) {
 			err := p.connectionAndListen(ctx, output)
 			if err != nil {
 				log.Printf("[%s] Connection lost: %v. Retrying in %v...", p.GetName(), err, delay)
+
+				output <- model.Tick{
+					Exchange:  p.GetName(),
+					IsCurrent: false,
+				}
+
 				select {
 				case <-time.After(delay):
 					delay <<= 1
@@ -58,6 +64,8 @@ func (p *ByBitProvider) connectionAndListen(ctx context.Context, output chan<- m
 	if err != nil {
 		return err
 	}
+
+	log.Printf("[%s] Connected to %s", p.GetName(), p.Symbol)
 
 	done := make(chan struct{})
 	defer close(done)
@@ -105,12 +113,12 @@ func (p *ByBitProvider) connectionAndListen(ctx context.Context, output chan<- m
 
 		if len(resp.Data.Bids) > 0 {
 			val, _ := strconv.ParseFloat(resp.Data.Bids[0][0], 64)
-			lastBid = int64(val * 100_000_000)
+			lastBid = int64(val * model.PricePrecision)
 		}
 
 		if len(resp.Data.Asks) > 0 {
 			val, _ := strconv.ParseFloat(resp.Data.Asks[0][0], 64)
-			lastAsk = int64(val * 100_000_000)
+			lastAsk = int64(val * model.PricePrecision)
 		}
 
 		if lastBid > 0 && lastAsk > 0 {
@@ -120,6 +128,7 @@ func (p *ByBitProvider) connectionAndListen(ctx context.Context, output chan<- m
 				BestBid:   lastBid,
 				BestAsk:   lastAsk,
 				Timestamp: time.Now(),
+				IsCurrent: true,
 			}
 		}
 	}

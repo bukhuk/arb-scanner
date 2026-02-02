@@ -23,6 +23,8 @@ func main() {
 
 	log.SetOutput(logFile)
 
+	log.Println("Arb scanner started")
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -60,4 +62,5 @@ func main() {
 
 	<-ctx.Done()
 	log.Println("Shutting down gracefully...")
+	log.Println("Arb scanner exited")
 }

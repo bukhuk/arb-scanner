@@ -49,6 +49,15 @@ func (e *Engine) GetPrices() map[string]model.Tick {
 }
 
 func (e *Engine) checkArbitrage(newTick model.Tick) {
+	if newTick.IsCurrent == false {
+		delete(e.prices, newTick.Exchange)
+
+		if e.optimal.Buyer == newTick.Exchange || e.optimal.Seller == newTick.Exchange {
+			e.optimal.Profit = 0
+		}
+		return
+	}
+
 	for exchange, lastTick := range e.prices {
 		if exchange == newTick.Exchange {
 			continue
@@ -84,9 +93,9 @@ func (e *Engine) updateOptimal(buyer model.Tick, seller model.Tick, profit float
 		e.optimal.Timestamp = t
 		e.optimal.Profit = profit
 		e.optimal.Buyer = buyer.Exchange
-		e.optimal.BuyPrice = float64(buyer.BestAsk) / 100_000_000
+		e.optimal.BuyPrice = float64(buyer.BestAsk) / model.PricePrecision
 		e.optimal.Seller = seller.Exchange
-		e.optimal.SellPrice = float64(seller.BestBid) / 100_000_000
+		e.optimal.SellPrice = float64(seller.BestBid) / model.PricePrecision
 	}
 }
 

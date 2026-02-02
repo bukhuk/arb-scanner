@@ -32,6 +32,12 @@ func (p *OKXProvider) Start(ctx context.Context, output chan<- model.Tick) {
 			err := p.connectionAndListen(ctx, output)
 			if err != nil {
 				log.Printf("[%s] Connection lost: %v. Retrying in %v...", p.GetName(), err, delay)
+
+				output <- model.Tick{
+					Exchange:  p.GetName(),
+					IsCurrent: false,
+				}
+
 				select {
 				case <-time.After(delay):
 					delay <<= 1
@@ -57,6 +63,8 @@ func (p *OKXProvider) connectionAndListen(ctx context.Context, output chan<- mod
 	if err != nil {
 		return err
 	}
+
+	log.Printf("[%s] Connected to %s", p.GetName(), p.Symbol)
 
 	done := make(chan struct{})
 	defer close(done)
@@ -116,9 +124,10 @@ func (p *OKXProvider) connectionAndListen(ctx context.Context, output chan<- mod
 			output <- model.Tick{
 				Exchange:  p.GetName(),
 				Symbol:    d.InstId,
-				BestBid:   int64(bid * 1e8),
-				BestAsk:   int64(ask * 1e8),
+				BestBid:   int64(bid * model.PricePrecision),
+				BestAsk:   int64(ask * model.PricePrecision),
 				Timestamp: time.Now(),
+				IsCurrent: true,
 			}
 		}
 	}

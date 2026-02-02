@@ -33,6 +33,12 @@ func (p *BinanceProvider) Start(ctx context.Context, output chan<- model.Tick) {
 			err := p.connectAndListen(ctx, output)
 			if err != nil {
 				log.Printf("[%s] Connection lost: %v. Retrying in %v...", p.GetName(), err, delay)
+
+				output <- model.Tick{
+					Exchange:  p.GetName(),
+					IsCurrent: false,
+				}
+
 				select {
 				case <-time.After(delay):
 					delay <<= 1
@@ -59,6 +65,8 @@ func (p *BinanceProvider) connectAndListen(ctx context.Context, output chan<- mo
 	if err != nil {
 		return err
 	}
+
+	log.Printf("[%s] Connected to %s", p.GetName(), p.Symbol)
 
 	done := make(chan struct{})
 	defer close(done)
@@ -100,9 +108,10 @@ func (p *BinanceProvider) connectAndListen(ctx context.Context, output chan<- mo
 		output <- model.Tick{
 			Exchange:  p.GetName(),
 			Symbol:    data.Symbol,
-			BestBid:   int64(bid * 100_000_000),
-			BestAsk:   int64(ask * 100_000_000),
+			BestBid:   int64(bid * model.PricePrecision),
+			BestAsk:   int64(ask * model.PricePrecision),
 			Timestamp: time.Now(),
+			IsCurrent: true,
 		}
 	}
 }
