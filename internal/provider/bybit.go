@@ -11,15 +11,15 @@ import (
 	"time"
 )
 
-type BybitProvider struct {
+type ByBitProvider struct {
 	Symbol string
 }
 
-func (p *BybitProvider) GetName() string {
+func (p *ByBitProvider) GetName() string {
 	return "Bybit"
 }
 
-func (p *BybitProvider) Start(output chan<- model.Tick) {
+func (p *ByBitProvider) Start(output chan<- model.Tick) {
 	go func() {
 		delay := time.Second
 		for {
@@ -37,7 +37,7 @@ func (p *BybitProvider) Start(output chan<- model.Tick) {
 	}()
 }
 
-func (p *BybitProvider) connectionAndListen(output chan<- model.Tick) error {
+func (p *ByBitProvider) connectionAndListen(output chan<- model.Tick) error {
 	url := "wss://stream.bybit.com/v5/public/spot"
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)

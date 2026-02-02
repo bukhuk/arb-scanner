@@ -14,14 +14,14 @@ func main() {
 
 	arbEngine := engine.NewEngine(0.0001)
 
-	p1 := &provider.BinanceProvider{Symbol: "btcusdt"}
-	p1.Start(ticks)
+	BinanceProvider := &provider.BinanceProvider{Symbol: "btcusdt"}
+	BinanceProvider.Start(ticks)
 
-	p2 := &provider.BybitProvider{Symbol: "btcusdt"}
-	p2.Start(ticks)
+	ByBitProvider := &provider.ByBitProvider{Symbol: "btcusdt"}
+	ByBitProvider.Start(ticks)
 
-	p3 := &provider.OKXProvider{Symbol: "BTC-USDT"}
-	p3.Start(ticks)
+	OKXProvider := &provider.OKXProvider{Symbol: "BTC-USDT"}
+	OKXProvider.Start(ticks)
 
 	monitor := ui.NewMonitor()
 	fmt.Print("\033[2J")
