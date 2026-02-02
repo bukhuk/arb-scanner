@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/bukhuk/arb-scanner/internal/model"
@@ -18,32 +19,55 @@ func (p *OKXProvider) GetName() string {
 	return "OKX"
 }
 
-func (p *OKXProvider) Start(output chan<- model.Tick) {
+func (p *OKXProvider) Start(ctx context.Context, output chan<- model.Tick) {
 	go func() {
 		delay := time.Second
 		for {
-			err := p.connectionAndListen(output)
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			log.Printf("[%s] Connection to %s...", p.GetName(), p.Symbol)
+			err := p.connectionAndListen(ctx, output)
 			if err != nil {
 				log.Printf("[%s] Connection lost: %v. Retrying in %v...", p.GetName(), err, delay)
-				time.Sleep(delay)
-				delay <<= 1
-				if delay > time.Minute {
-					delay = time.Minute
+				select {
+				case <-time.After(delay):
+					delay <<= 1
+					if delay > time.Minute {
+						delay = time.Minute
+					}
+				case <-ctx.Done():
+					return
 				}
+				continue
 			}
 			delay = time.Second
 		}
 	}()
 }
 
-func (p *OKXProvider) connectionAndListen(output chan<- model.Tick) error {
+func (p *OKXProvider) connectionAndListen(ctx context.Context, output chan<- model.Tick) error {
 	url := "wss://ws.okx.com:8443/ws/v5/public"
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	defer conn.Close()
+
 	if err != nil {
-		return fmt.Errorf("okx dial error: %w", err)
+		return err
 	}
+
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			conn.Close()
+		case <-done:
+			return
+		}
+	}()
 
 	subscribeMsg := map[string]interface{}{
 		"op": "subscribe",
@@ -62,7 +86,9 @@ func (p *OKXProvider) connectionAndListen(output chan<- model.Tick) error {
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("OKX read error: %v", err)
+			if ctx.Err() != nil {
+				return nil
+			}
 			return err
 		}
 

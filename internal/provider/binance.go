@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/bukhuk/arb-scanner/internal/model"
@@ -19,18 +20,27 @@ func (p *BinanceProvider) GetName() string {
 	return "Binance"
 }
 
-func (p *BinanceProvider) Start(output chan<- model.Tick) {
+func (p *BinanceProvider) Start(ctx context.Context, output chan<- model.Tick) {
 	go func() {
 		delay := time.Second
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			log.Printf("[%s] Connection to %s...", p.GetName(), p.Symbol)
-			err := p.connectAndListen(output)
+			err := p.connectAndListen(ctx, output)
 			if err != nil {
 				log.Printf("[%s] Connection lost: %v. Retrying in %v...", p.GetName(), err, delay)
-				time.Sleep(delay)
-				delay <<= 1
-				if delay > time.Minute {
-					delay = time.Minute
+				select {
+				case <-time.After(delay):
+					delay <<= 1
+					if delay > time.Minute {
+						delay = time.Minute
+					}
+				case <-ctx.Done():
+					return
 				}
 				continue
 			}
@@ -39,19 +49,35 @@ func (p *BinanceProvider) Start(output chan<- model.Tick) {
 	}()
 }
 
-func (p *BinanceProvider) connectAndListen(output chan<- model.Tick) error {
+func (p *BinanceProvider) connectAndListen(ctx context.Context, output chan<- model.Tick) error {
 	symbol := strings.ToLower(p.Symbol)
 	url := fmt.Sprintf("wss://stream.binance.com:9443/ws/%s@bookTicker", symbol)
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	defer conn.Close()
+
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+
+	done := make(chan struct{})
+	defer close(done)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			conn.Close()
+		case <-done:
+			return
+		}
+	}()
 
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
 			log.Printf("Binance read error: %v", err)
 			return err
 		}

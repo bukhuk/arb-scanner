@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/bukhuk/arb-scanner/internal/model"
@@ -19,25 +20,36 @@ func (p *ByBitProvider) GetName() string {
 	return "Bybit"
 }
 
-func (p *ByBitProvider) Start(output chan<- model.Tick) {
+func (p *ByBitProvider) Start(ctx context.Context, output chan<- model.Tick) {
 	go func() {
 		delay := time.Second
 		for {
-			err := p.connectionAndListen(output)
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			log.Printf("[%s] Connection to %s...", p.GetName(), p.Symbol)
+			err := p.connectionAndListen(ctx, output)
 			if err != nil {
 				log.Printf("[%s] Connection lost: %v. Retrying in %v...", p.GetName(), err, delay)
-				time.Sleep(delay)
-				delay <<= 1
-				if delay > time.Minute {
-					delay = time.Minute
+				select {
+				case <-time.After(delay):
+					delay <<= 1
+					if delay > time.Minute {
+						delay = time.Minute
+					}
+				case <-ctx.Done():
+					return
 				}
+				continue
 			}
 			delay = time.Second
 		}
 	}()
 }
 
-func (p *ByBitProvider) connectionAndListen(output chan<- model.Tick) error {
+func (p *ByBitProvider) connectionAndListen(ctx context.Context, output chan<- model.Tick) error {
 	url := "wss://stream.bybit.com/v5/public/spot"
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
@@ -46,6 +58,18 @@ func (p *ByBitProvider) connectionAndListen(output chan<- model.Tick) error {
 	if err != nil {
 		return err
 	}
+
+	done := make(chan struct{})
+	defer close(done)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			conn.Close()
+		case <-done:
+			return
+		}
+	}()
 
 	subscribeMsg := map[string]interface{}{
 		"op":   "subscribe",
@@ -61,6 +85,9 @@ func (p *ByBitProvider) connectionAndListen(output chan<- model.Tick) error {
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
 			return err
 		}
 

@@ -1,8 +1,11 @@
 package provider
 
-import "github.com/bukhuk/arb-scanner/internal/model"
+import (
+	"context"
+	"github.com/bukhuk/arb-scanner/internal/model"
+)
 
 type Provider interface {
-	Start(output chan<- model.Tick) error
+	Start(ctx context.Context, output chan<- model.Tick) error
 	GetName() string
 }
